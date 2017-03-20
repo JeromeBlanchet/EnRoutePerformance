@@ -3,12 +3,14 @@ All scripts are tested through on a windows 8.1 machine, and a Mac OS 10.11.6 ma
 
 
 I. Dependent Python Packages:
+_______________________________
 	$ conda install pymongo
 	$ pip install descartes
-	$ conda install baseman
+	$ conda install basemap
 	$ conda install shapely
 	$ pip install geopandas
 	$ pip install pylogit
+——————————————————————————————-
 II. Usage
 1. To use the packages, please first unzip the files “DependentData.zip”, “DependentData2.zip” and “DependentData3.zip” to the CURRENT directory 
 2. Then run “GetWx_ARTCC.py” directly to extract ARTCC-based weather info.
