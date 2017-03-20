@@ -32,7 +32,7 @@ class Traj_Clustering:
         self.Des_Lon = self.Coords[self.Des][1]
         if VTRACK is None:
             try:
-                self.VTRACK = pd.read_csv(os.getcwd()+'\TFMS_NEW\\'+'New_'+self.Ori+self.Des+str(self.year)+'.csv')
+                self.VTRACK = pd.read_csv(os.getcwd()+'/TFMS_NEW/'+'New_'+self.Ori+self.Des+str(self.year)+'.csv')
             except:
                 raise ValueError('No trajectory data found! Please load valid flight track data!')
 #                DATA = EDA_Data(self.Ori,self.Des,self.year)
@@ -41,7 +41,7 @@ class Traj_Clustering:
             self.VTRACK = VTRACK.copy()
         if EnEff is None:
             try:            
-                EnEff = pickle.load(open(os.getcwd()+'\TFMS_NEW\\'+'Eff_'+self.Ori+self.Des+str(self.year)+'.p','rb'))
+                EnEff = pickle.load(open(os.getcwd()+'/TFMS_NEW/'+'Eff_'+self.Ori+self.Des+str(self.year)+'.p','rb'))
             except:
                 raise ValueError('No Efficiency data found! Please load valid dataset!')
         else:
@@ -263,8 +263,8 @@ class Traj_Clustering:
         
         if SAVE == True:
             Fname = 'Label_'+self.Ori+'_'+self.Des+'_'+str(self.year)
-            LabelData.to_csv(os.getcwd()+'\TFMS_NEW\\'+Fname+'.csv', index = False)
-            pickle.dump(Median_ID, open(os.getcwd()+'\TFMS_NEW\\MEDIAN_'+Fname+'.p','wb'))
+            LabelData.to_csv(os.getcwd()+'/TFMS_NEW/'+Fname+'.csv', index = False)
+            pickle.dump(Median_ID, open(os.getcwd()+'/TFMS_NEW/MEDIAN_'+Fname+'.p','wb'))
         else:
             pass
         if PLOT:
@@ -370,8 +370,8 @@ class Traj_Clustering:
         
         if SAVE == True:
             Fname = 'Label_'+self.Ori+'_'+self.Des+'_'+str(self.year)
-            LabelData.to_csv(os.getcwd()+'\TFMS_NEW\\'+Fname+'.csv', index = False)
-            pickle.dump(Median_ID, open(os.getcwd()+'\TFMS_NEW\\MEDIAN_'+Fname+'.p','wb'))
+            LabelData.to_csv(os.getcwd()+'/TFMS_NEW/'+Fname+'.csv', index = False)
+            pickle.dump(Median_ID, open(os.getcwd()+'/TFMS_NEW/MEDIAN_'+Fname+'.p','wb'))
         else:
             pass
         if PLOT:
@@ -473,8 +473,8 @@ class Traj_Clustering:
         
         if SAVE == True:
             Fname = 'Label_'+self.Ori+'_'+self.Des+'_'+str(self.year)
-            LabelData.to_csv(os.getcwd()+'\TFMS_NEW\\'+Fname+'.csv', index = False)
-            pickle.dump(Median_ID, open(os.getcwd()+'\TFMS_NEW\\MEDIAN_'+Fname+'.p','wb'))
+            LabelData.to_csv(os.getcwd()+'/TFMS_NEW/'+Fname+'.csv', index = False)
+            pickle.dump(Median_ID, open(os.getcwd()+'/TFMS_NEW/MEDIAN_'+Fname+'.p','wb'))
         else:
             pass
         if PLOT:
@@ -596,8 +596,8 @@ class Traj_Clustering:
         
         if SAVE == True:
             Fname = 'Label_'+self.Ori+'_'+self.Des+'_'+str(self.year)
-            LabelData.to_csv(os.getcwd()+'\TFMS_NEW\\'+Fname+'.csv', index = False)
-            pickle.dump(Median_ID, open(os.getcwd()+'\TFMS_NEW\\MEDIAN_'+Fname+'.p','wb'))
+            LabelData.to_csv(os.getcwd()+'/TFMS_NEW/'+Fname+'.csv', index = False)
+            pickle.dump(Median_ID, open(os.getcwd()+'/TFMS_NEW/MEDIAN_'+Fname+'.p','wb'))
         else:
             pass
         if PLOT:

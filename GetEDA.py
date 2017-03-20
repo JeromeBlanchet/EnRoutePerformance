@@ -147,10 +147,10 @@ class EDA_Data:
         Fname1 = 'ETMS_FlightTracks_'+ self.Dep + self.Arr + '_' + str(self.year) + '.csv'
         Fname2 = 'ETMS_FlightTracks_'+ self.Arr + self.Dep + '_' + str(self.year) + '.csv'
         try:
-            OD_TRACK = pd.read_csv(os.getcwd() + '\TFMS\\' + Fname1,usecols=ColIdx,header=0, 
+            OD_TRACK = pd.read_csv(os.getcwd() + '/TFMS/' + Fname1,usecols=ColIdx,header=0, 
                                    names=ColName, parse_dates = [6])
         except IOError:
-            OD_TRACK = pd.read_csv(os.getcwd() + '\TFMS\\' + Fname2,usecols=ColIdx,header=0, 
+            OD_TRACK = pd.read_csv(os.getcwd() + '/TFMS/' + Fname2,usecols=ColIdx,header=0, 
                                    names=ColName, parse_dates = [6])
             
         OD_TRACK = OD_TRACK[(OD_TRACK.DEP == self.Dep)&(OD_TRACK.ARR == self.Arr)].sort_values(by = ['FID','Elap_Time']).reset_index(drop = 1)
