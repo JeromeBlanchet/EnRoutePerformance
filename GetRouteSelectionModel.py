@@ -36,6 +36,10 @@ class RouteSelectionModel:
             self.Nominal_Dep = pd.read_csv(os.getcwd() + NominalDir, header = 0)
             print('Use Existing Nomianl Path Set')
         except:
+            try:
+                os.mkdir('MNL')
+            except:
+                pass
             print('Start Constructing Nominal Path data...')        
             self.Nominal_Dep = self.NominalPath()
             self.Nominal_Dep.to_csv(os.getcwd() + NominalDir, index = False)
@@ -174,45 +178,45 @@ class RouteSelectionModel:
             MNL_DATA.to_csv(os.getcwd() + '/MNL/'+Fname,index = False)
         return MNL_DATA
         
-class LinearModel:
-    def __init__(self, DEP,ARR, SaveLR = False):
-        self.DEP = DEP
-        self.ARR = ARR
-        self.fname = 'MNL_' + self.DEP + '_' + self.ARR+'_2013_Mean.csv'
-        self.LR_Data = self.GetLR_Data()
-        if SaveLR == True:
-            try:
-                os.makedirs('LR')
-            except:
-                pass
-            Fname = 'LR_' + self.DEP + '_' + self.ARR + '_2013.csv'
-            self.LR_Data.to_csv(os.getcwd() + 'LR/'+Fname,index = False)
-    
-    def GetLR_Data(self):
-        Data = pd.read_csv(os.getcwd() + '/MNL/' + self.fname, header = 0)
-        
-        wt = Data[Data.CHOICE == 1].groupby('FID_x').FID_Member.count()/Data.FID_Member.unique().shape[0]
-        weight = lambda x: wt.ix[x]
-        Data['wt'] = Data.groupby('FID_x').FID_x.transform(weight)
-    
-        ASC_ColumnIdx = range(2,18)
-        SD_ColumnIdx = [23,22,29,30]
-        
-        Data[Data.columns[ASC_ColumnIdx]] = Data[Data.columns[ASC_ColumnIdx]].apply(lambda x: x * Data.wt)
-        
-        Keys = collections.OrderedDict()
-        Keys['Efficiency'] = 'mean'
-        
-        for key in Data.columns[SD_ColumnIdx]:
-            Keys[key] = 'mean'
-        for key in Data.columns[ASC_ColumnIdx]:
-            Keys[key] = 'sum'
-        
-        LR_Data = Data.groupby('FID_Member').agg(Keys).reset_index(drop = True)
-        LR_Data['OD'] = self.fname[4:11]
-        LR_Data['OD_Clust'] = self.fname[4:11] + '_' + LR_Data.ClustID.map(str)
-        
-        return LR_Data
+#class LinearModel:
+#    def __init__(self, DEP,ARR, SaveLR = False):
+#        self.DEP = DEP
+#        self.ARR = ARR
+#        self.fname = 'MNL_' + self.DEP + '_' + self.ARR+'_2013_Mean.csv'
+#        self.LR_Data = self.GetLR_Data()
+#        if SaveLR == True:
+#            try:
+#                os.makedirs('LR')
+#            except:
+#                pass
+#            Fname = 'LR_' + self.DEP + '_' + self.ARR + '_2013.csv'
+#            self.LR_Data.to_csv(os.getcwd() + 'LR/'+Fname,index = False)
+#    
+#    def GetLR_Data(self):
+#        Data = pd.read_csv(os.getcwd() + '/MNL/' + self.fname, header = 0)
+#        
+#        wt = Data[Data.CHOICE == 1].groupby('FID_x').FID_Member.count()/Data.FID_Member.unique().shape[0]
+#        weight = lambda x: wt.ix[x]
+#        Data['wt'] = Data.groupby('FID_x').FID_x.transform(weight)
+#    
+#        ASC_ColumnIdx = range(2,18)
+#        SD_ColumnIdx = [23,22,29,30]
+#        
+#        Data[Data.columns[ASC_ColumnIdx]] = Data[Data.columns[ASC_ColumnIdx]].apply(lambda x: x * Data.wt)
+#        
+#        Keys = collections.OrderedDict()
+#        Keys['Efficiency'] = 'mean'
+#        
+#        for key in Data.columns[SD_ColumnIdx]:
+#            Keys[key] = 'mean'
+#        for key in Data.columns[ASC_ColumnIdx]:
+#            Keys[key] = 'sum'
+#        
+#        LR_Data = Data.groupby('FID_Member').agg(Keys).reset_index(drop = True)
+#        LR_Data['OD'] = self.fname[4:11]
+#        LR_Data['OD_Clust'] = self.fname[4:11] + '_' + LR_Data.ClustID.map(str)
+#        
+#        return LR_Data
     
 ##------------------------------------------------------------------------------
 ## # Multinomial Logit Model
