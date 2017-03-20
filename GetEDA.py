@@ -384,7 +384,7 @@ class EDA_Data:
             for row in line:
                 i += 1
                 if i % 50000 == 0:
-                    print i
+                    print( i )
                 if [row[0],row[1]] not in FID:
                     FID.append([row[0],row[1]])
                     Track[row[0]] = {'FID':int(row[0]),'FIndex':row[1],'ACID':row[2],
@@ -396,7 +396,7 @@ class EDA_Data:
             TZ = np.asarray(Track[KEY]['TZ'])[:,1:3].tolist()
             Track[KEY]['TZ_LS'] = {'type':'LineString','coordinates':TZ}
             self.collection.insert(Track[KEY])
-        print time.time() - a
+        print( time.time() - a )
         return Track
         
     def SaveData(self):

@@ -99,7 +99,7 @@ class Traj_Clustering:
         pca = PCA(n_components = self.N_Comp)
         PCA_Compon = pca.fit_transform(self.NewSeries)
         print(pca.explained_variance_ratio_)
-        print sum(pca.explained_variance_ratio_)
+        print( sum(pca.explained_variance_ratio_) )
         PCA_Inv = pca.inverse_transform(PCA_Compon)
         return PCA_Inv,PCA_Compon,pca
     
@@ -193,7 +193,7 @@ class Traj_Clustering:
                 Legd = col + ' | ' + str(sum(class_member_mask)/len(self.FID_ID)*100)[:5] + '%'
                 XLegend.append(Legd)
                     
-                print k,col,sum(class_member_mask)/len(self.FID_ID), MeanEff[k]
+                print( k,col,sum(class_member_mask)/len(self.FID_ID), MeanEff[k] )
                 
                 Core_Traj = self.pca.inverse_transform(self.PCA_Comp[class_member_mask & core_samples_mask])
                 Member_Traj = self.pca.inverse_transform(self.PCA_Comp[class_member_mask & ~core_samples_mask]) 
@@ -539,7 +539,7 @@ class Traj_Clustering:
                 Legd = col + ' | ' + str(sum(class_member_mask)/len(self.FID_ID)*100)[:5] + '%'
                 XLegend.append(Legd)
                     
-                print k,col,sum(class_member_mask)/len(self.FID_ID), MeanEff[k]
+                print( k,col,sum(class_member_mask)/len(self.FID_ID), MeanEff[k] ) 
                 
                 Core_Traj = self.pca.inverse_transform(self.PCA_Comp[class_member_mask])
                 Center_Traj = self.pca.inverse_transform(cluster_centers) 
