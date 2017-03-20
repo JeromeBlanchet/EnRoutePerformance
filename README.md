@@ -10,7 +10,7 @@ _______________________________
 	$ conda install shapely
 	$ pip install geopandas
 	$ pip install pylogit
-——————————————————————————————-
+_______________________________
 II. Usage
 1. To use the packages, please first unzip the files “DependentData.zip”, “DependentData2.zip” and “DependentData3.zip” to the CURRENT directory 
 2. Then run “GetWx_ARTCC.py” directly to extract ARTCC-based weather info.
