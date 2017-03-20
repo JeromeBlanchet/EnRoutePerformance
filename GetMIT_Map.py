@@ -21,7 +21,8 @@ from mpl_toolkits.basemap import Basemap
 
 def ProcessMITData():
     # Import MIT
-    MIT_Enroute = pd.read_csv(os.getcwd()+'/TMI/MIT_Enroute_Merge.csv', sep = ',',parse_dates=[4,6])
+    MIT_All = pd.read_csv(os.getcwd()+'/TMI/MIT_All_Merge.csv', sep = ',',parse_dates=[4,6])
+    MIT_Enroute = MIT_All[MIT_All.RSTNTYPE_TEXT == 'Enroute'].reset_index(drop = True)
     Airways = pd.read_csv(os.getcwd() + '/TMI/Geometry/Airways_CleanRelevant.csv')
     Navaids = pd.read_csv(os.getcwd() + '/TMI/Geometry/FixesNavaids_CleanRelevant.csv')
     TRACON = pd.read_csv(os.getcwd() + '/TMI/Geometry/TRACON.csv')
@@ -219,7 +220,7 @@ class MappingMIT:
         Airborne = self.CenterTraj.groupby('FID').DT.sum() # seconds
         st = time.time()
         for i in range(self.LabelData.shape[0]):
-            if i % 1500 == 0:
+            if i % 500 == 0:
                 print(i, time.time() - st)
             
             departureTime = self.LabelData.loc[i, 'Elap_Time']
@@ -344,7 +345,7 @@ def MIT_MappingSummary(Dep, Arr, Year, Plot = False):
     SummaryStat.columns = ['ClusterFID'] + SummaryStat.columns.droplevel()[1:].tolist()
     SummaryStat = SummaryStat.loc[SummaryStat.ClusterFID != 99999999,:]
     if Plot:
-        VTRACK = pd.read_csv(os.getcwd()+'\TFMS_NEW\\'+'New_'+Dep+Arr+str(Year)+'.csv')
+        VTRACK = pd.read_csv(os.getcwd()+'/TFMS_NEW/'+'New_'+Dep+Arr+str(Year)+'.csv')
         MedianTrack = VTRACK[VTRACK.FID.isin(SummaryStat.ClusterFID.values)][['FID','Lon','Lat']]
         fig = plt.figure(figsize=(18,6))
         ax1 = fig.add_subplot(1,2,1)
