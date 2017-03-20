@@ -4,7 +4,8 @@ $ conda install pymongo
 $ pip install descartes
 $ conda install baseman
 $ conda install shapely
-
+$ pip install geopandas
+$ pip install pylogit
 
 TO use the packages, please first unzip the files:
 
