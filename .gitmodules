@@ -1,0 +1,3 @@
+[submodule "Wind_Mining"]
+	path = Wind_Mining
+	url = https://github.com/yulinliu101/Wind_Mining.git
