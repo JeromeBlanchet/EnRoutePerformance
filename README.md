@@ -1,4 +1,6 @@
 # EnRoutePerformance
+All scripts are tested through on a windows 8.1 machine, and a Mac OS 10.11.6 machine. Development screen shot of a Mac machine is also included.
+
 
 I. Dependent Python Packages:
 	$ conda install pymongo
