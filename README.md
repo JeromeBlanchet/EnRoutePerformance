@@ -1,4 +1,4 @@
-# EnRoutePerformance
+﻿# EnRoutePerformance
 All scripts are tested through on a windows 8.1 machine, and a Mac OS 10.11.6 machine. Development screen shot of a Mac machine is also included.
 
 
@@ -13,8 +13,9 @@ _______________________________
 _______________________________
 II. Usage
 1. To use the packages, please first unzip the files “DependentData.zip”, “DependentData2.zip” and “DependentData3.zip” to the CURRENT directory 
-2. Then run “GetWx_ARTCC.py” directly to extract ARTCC-based weather info.
-3. “.py” files are packages, we need to use “.ipynb” files to call those packages and do further analysis, i.e., use the “02_EDA_Clustering.ipynb” to visualise the trajectories, and further conduct clustering analysis; use “03_BuildMNL_DATA_WX.IPYNB” to build MNL dataset and merge with convective weather; use “04_MIT.ipynb” to map with MIT. Between the convective weather and MIT module, we need to use the linux machine to conduct the wind analysis. “08_RegressionAnalysis.ipynb” is the one to fit regression models based on the MNL dataset.
+2. Then refer the "ReadMe.txt " in the sub-directory '/NOAA' to download all the required weather data. In this case, the data should be from 12/2012 to 12/2013.
+3. Then run “GetWx_ARTCC.py” directly to extract ARTCC-based weather info. (The output file is already included in the sub directory '/NOAA')
+4. “.py” files are packages, we need to use “.ipynb” files to call those packages and do further analysis, i.e., use the “02_EDA_Clustering.ipynb” to visualise the trajectories, and further conduct clustering analysis; use “03_BuildMNL_DATA_WX.IPYNB” to build MNL dataset and merge with convective weather; use “04_MIT.ipynb” to map with MIT. Between the convective weather and MIT module, we need to use the linux machine to conduct the wind analysis. “08_RegressionAnalysis.ipynb” is the one to fit regression models based on the MNL dataset.
 
 III. Note:
 1. DependentData2.zip is actually the output of GetEDA.py. Since we need to build mongodb to test the full function of GetEDA.py, I didn't do so in the testing phase. Considering FAA is using Oracle database, you may want to change the mongodb part to oracle. Thus, I just provide the output of GetEDA.py for IAH --> BOS case.
