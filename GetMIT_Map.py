@@ -29,18 +29,18 @@ def ProcessMITData():
     # Convert TRACON into single polygon, with name unique
 
     def GetPolygon(x):
-	    BoundaryCoords = map(float,x.split())
-	    Poly = Polygon(zip(BoundaryCoords[1::2], BoundaryCoords[0::2]))
-	    if Poly.is_valid:
-	        return Poly
-	    else:
-	        mlon = 2 * sum(BoundaryCoords[1::2])/len(BoundaryCoords)
-	        mlat = 2 * sum(BoundaryCoords[0::2])/len(BoundaryCoords)
-	        def algo(x):
-	            return (math.atan2(x[0] - mlon, x[1] - mlat) + 2 * math.pi) % (2*math.pi)
-	        MeterPntList = zip(BoundaryCoords[1::2], BoundaryCoords[0::2])
-	        MeterPntList.sort(key=algo)
-	        return Polygon(MeterPntList)
+        BoundaryCoords = map(float,x.split())
+        Poly = Polygon(zip(BoundaryCoords[1::2], BoundaryCoords[0::2]))
+        if Poly.is_valid:
+            return Poly
+        else:
+            mlon = 2 * sum(BoundaryCoords[1::2])/len(BoundaryCoords)
+            mlat = 2 * sum(BoundaryCoords[0::2])/len(BoundaryCoords)
+            def algo(x):
+                return (math.atan2(x[0] - mlon, x[1] - mlat) + 2 * math.pi) % (2*math.pi)
+            MeterPntList = zip(BoundaryCoords[1::2], BoundaryCoords[0::2])
+            MeterPntList.sort(key=algo)
+            return Polygon(MeterPntList)
     TRACON['geometry'] = TRACON.BOUNDARY.apply(lambda x: GetPolygon(x))
     TRACON_POLY = TRACON.groupby('TRACON_ID').geometry.apply(lambda x: cascaded_union(x)).reset_index()
     
