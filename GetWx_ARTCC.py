@@ -21,6 +21,26 @@ Finally convert the local time to UTC.
 
 """
 
+def lookup(s):
+    """
+    This is an extremely fast approach to datetime parsing.
+    For large data, the same dates are often repeated. Rather than
+    re-parse these, we store all unique dates, parse them, and
+    use a lookup to convert all dates.
+    """
+    dates = {date:pd.to_datetime(date) for date in s.unique()}
+    return s.map(dates)
+
+def lookup_convert_utc(s):
+    """
+    This is an extremely fast approach to datetime parsing.
+    For large data, the same dates are often repeated. Rather than
+    re-parse these, we store all unique dates, parse them, and
+    use a lookup to convert all dates.
+    """
+    utc = {date: parse(date[:13] + ' LC', tzinfos = {'LC': gettz(date[14:])}).astimezone(gettz('UTC')) for date in s.unique()}
+    return s.map(utc)
+
 
 # Preprocessing NOAA data
 for File in os.listdir(os.getcwd()+'/NOAA/raw'):
@@ -90,34 +110,44 @@ ZoneSum.columns=['ARTCC','LocalDate','LocalHour','TimeZone','TS_sum','TS_mean','
                        'Precipitation_sum','Precipitation_mean','Rain_sum','Rain_mean','Shower_sum','Shower_mean',
                        'Ice_sum','Ice_mean','Squall_sum','Squall_mean']
 ZoneSum['LocalTime'] = (ZoneSum['LocalDate'].map(str) + ' ' + ZoneSum['LocalHour'].map(str) + '00').apply(lambda x: parse(x))
-ZoneSum.to_csv(os.getcwd()+'/NOAA/ARTCC_Based_Weather_Sum.csv',index = False)
 
-with open(os.getcwd()+'/NOAA/ARTCC_Based_Weather_Sum.csv') as csvfile:
-    with open(os.getcwd()+'/NOAA/ARTCC_Based_Weather_Sum_UTC.csv','wb') as wcsvfile:
-        rline = csv.reader(csvfile)
-        wline = csv.writer(wcsvfile)
-        i = 0
-        for row in rline:
-            i += 1
-            if i == 1:
-                output = row[:3]
-                output.extend(row[4:-1])
-                output.extend(['UTCYear','UTCMonth','UTCDay','UTChour'])
-                wline.writerow(output)
-            else:
-                if i % 100000 == 0:
-                    print i
-                LocalTime = parse(row[-1] + ' LC', tzinfos = {'LC': gettz(row[3])})
-                UTCTime = LocalTime.astimezone(gettz('UTC'))
-                UTCYear = UTCTime.year
-                UTCMonth = UTCTime.month
-                UTCDay = UTCTime.day
-                UTCHour = UTCTime.hour
-                output = row[:3]
-                output.extend(row[4:-1])
-                output.extend([UTCYear,UTCMonth,UTCDay,UTCHour])
-                if UTCYear == 2013:
-                    wline.writerow(output)
-                else:
-                    pass
-                
+
+ZoneSum['LocalTime'] = lookup(ZoneSum['LocalDate'].map(str) + ' ' + ZoneSum['LocalHour'].map(str) + '00')
+ZoneSum['UTC_Time'] = lookup_convert_utc(ZoneSum['LocalDate'].map(str) + ' ' + \
+                                            ZoneSum['LocalHour'].map(str) + '00' + ' ' + ZoneSum['TimeZone'])
+ZoneSum['UTCYear'] = ZoneSum['UTC_Time'].apply(lambda x: x.year)
+ZoneSum['UTCMonth'] = ZoneSum['UTC_Time'].apply(lambda x: x.month)
+ZoneSum['UTCDay'] = ZoneSum['UTC_Time'].apply(lambda x: x.day)
+ZoneSum['UTChour'] = ZoneSum['UTC_Time'].apply(lambda x: x.hour)
+
+ZoneSum.loc[ZoneSum.UTCYear==2013, ZoneSum.columns.drop('TimeZone')].to_csv(os.getcwd()+'/NOAA/ARTCC_Based_Weather_Sum_UTC.csv',index = False)
+
+# with open(os.getcwd()+'/NOAA/ARTCC_Based_Weather_Sum.csv') as csvfile:
+#     with open(os.getcwd()+'/NOAA/ARTCC_Based_Weather_Sum_UTC.csv','wb') as wcsvfile:
+#         rline = csv.reader(csvfile)
+#         wline = csv.writer(wcsvfile)
+#         i = 0
+#         for row in rline:
+#             i += 1
+#             if i == 1:
+#                 output = row[:3]
+#                 output.extend(row[4:-1])
+#                 output.extend(['UTCYear','UTCMonth','UTCDay','UTChour'])
+#                 wline.writerow(output)
+#             else:
+#                 if i % 100000 == 0:
+#                     print i
+#                 LocalTime = parse(row[-1] + ' LC', tzinfos = {'LC': gettz(row[3])})
+#                 UTCTime = LocalTime.astimezone(gettz('UTC'))
+#                 UTCYear = UTCTime.year
+#                 UTCMonth = UTCTime.month
+#                 UTCDay = UTCTime.day
+#                 UTCHour = UTCTime.hour
+#                 output = row[:3]
+#                 output.extend(row[4:-1])
+#                 output.extend([UTCYear,UTCMonth,UTCDay,UTCHour])
+#                 if UTCYear == 2013:
+#                     wline.writerow(output)
+#                 else:
+#                     pass
+#                 
