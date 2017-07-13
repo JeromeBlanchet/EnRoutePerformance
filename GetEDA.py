@@ -18,6 +18,7 @@ import time
 import os
 import math
 from dateutil.parser import parse
+from shapely.geometry import LineString
 import pickle
 from GetPreferRoute import PreferRoute
 
@@ -147,10 +148,10 @@ class EDA_Data:
         Fname1 = 'ETMS_FlightTracks_'+ self.Dep + self.Arr + '_' + str(self.year) + '.csv'
         Fname2 = 'ETMS_FlightTracks_'+ self.Arr + self.Dep + '_' + str(self.year) + '.csv'
         try:
-            OD_TRACK = pd.read_csv(os.getcwd() + '/TFMS/' + Fname1,usecols=ColIdx,header=0, 
+            OD_TRACK = pd.read_csv(os.getcwd() + '\TFMS\\' + Fname1,usecols=ColIdx,header=0, 
                                    names=ColName, parse_dates = [6])
         except IOError:
-            OD_TRACK = pd.read_csv(os.getcwd() + '/TFMS/' + Fname2,usecols=ColIdx,header=0, 
+            OD_TRACK = pd.read_csv(os.getcwd() + '\TFMS\\' + Fname2,usecols=ColIdx,header=0, 
                                    names=ColName, parse_dates = [6])
             
         OD_TRACK = OD_TRACK[(OD_TRACK.DEP == self.Dep)&(OD_TRACK.ARR == self.Arr)].sort_values(by = ['FID','Elap_Time']).reset_index(drop = 1)
@@ -219,8 +220,21 @@ class EDA_Data:
         WFFID4 = DistTrav.index[np.where(DistTrav < GCDistance(self.Ori_Lat,self.Ori_Lon,self.Des_Lat,self.Des_Lon))]
         WFFID = reduce(np.union1d,(WFFID1,WFFID2,WFFID3,WFFID4))
         return WFFID
-        
-    def PlotWithID(self, FID_set = [], FlightIDX_ACID_set = [],xlb = -126,xrb = -65,ylb = 23.5,yub = 50, LW = 2.5, Animated = False):
+
+    def DetectHolding(self, Plot = False):
+    	Holding = []
+    	for gpidx, gp in self.VTrack.groupby('FID'):
+    	    if LineString(gp[['Lon','Lat']].values).is_simple:
+    	        pass
+    	    else:
+    	        Holding.append(gpidx)
+    	if Plot:
+    		self.PlotWithID(Holding)
+    		return Holding
+    	else:
+    		return Holding
+
+    def PlotWithID(self, FID_set = [], FlightIDX_ACID_set = [],xlb = -126,xrb = -65,ylb = 23.5,yub = 50, LW = 2.5, Animated = False, many_col = False):
         fig = plt.figure(figsize=(16,12))
         m = Basemap(llcrnrlon = xlb,llcrnrlat = ylb,urcrnrlon = xrb,urcrnrlat = yub,projection='merc')
         m.bluemarble()
@@ -229,19 +243,23 @@ class EDA_Data:
         m.drawstates(linewidth=0.5)
         m.drawparallels(np.arange(10.,35.,5.))
         m.drawmeridians(np.arange(-120.,-80.,10.))
+
                           
         DrawSample = self.VTrack[(self.VTrack.FID.isin(FID_set) | (self.VTrack.FlightIdx.astype(str)+'-'+self.VTrack.ACID).isin(FlightIDX_ACID_set))][['FID','Lon','Lat']].set_index('FID')
-        C = plt.cm.Reds(np.linspace(0, 1, DrawSample.index.unique().shape[0]))
+        if many_col:
+            C = plt.cm.Reds(np.linspace(0, 1, DrawSample.index.unique().shape[0]))
+        else:
+            C = ['r'] * DrawSample.index.unique().shape[0]
         i = -1
         for fid in DrawSample.index.unique():
             i += 1
             x,y = m(DrawSample.ix[fid,'Lon'].values, DrawSample.ix[fid,'Lat'].values)
-            Trajectories, = plt.plot(x,y,'-', linewidth = LW, color=C[i], 
+            Trajectories, = plt.plot(x,y,'-', linewidth = LW, color = C[i], 
                              label = 'Real-time Trajectories: ' + self.Dep+'->'+self.Arr)
             if Animated:
                 plt.pause(0.01)
-        Ori_patch = np.array(Point([self.Ori_Lon, self.Ori_Lat]).buffer(0.66).exterior.coords)
-        Des_patch = np.array(Point([self.Des_Lon, self.Des_Lat]).buffer(1.66).exterior.coords)
+        Ori_patch = np.array(Point([self.Ori_Lon, self.Ori_Lat]).buffer(0.5797).exterior.coords)
+        Des_patch = np.array(Point([self.Des_Lon, self.Des_Lat]).buffer(1.4493).exterior.coords)
         Ori_x, Ori_y = m(Ori_patch[:,0],Ori_patch[:,1])
         Des_x, Des_y = m(Des_patch[:,0],Des_patch[:,1])
         OriPoly = PolygonPatch(Polygon(zip(Ori_x, Ori_y)), facecolor = 'y', alpha = 0.35, zorder = 15)
@@ -255,8 +273,10 @@ class EDA_Data:
         # Initialization 
         # Timeframe should be a list of interested month       
         fig = plt.figure(figsize=(16,12))
-        m = Basemap(llcrnrlon = xlb,llcrnrlat = ylb,urcrnrlon = xrb,urcrnrlat = yub,projection='merc')
+        m = Basemap(llcrnrlon = xlb,llcrnrlat = ylb,urcrnrlon = xrb,urcrnrlat = yub,projection='merc',resolution='l')
         m.bluemarble()
+        # m.drawmapboundary(fill_color='aqua')
+        # m.fillcontinents(lake_color='aqua')
         m.drawcoastlines(linewidth=0.5)
         m.drawcountries(linewidth=0.5)
         m.drawstates(linewidth=0.5)
@@ -265,19 +285,6 @@ class EDA_Data:
         GCRoute, = m.drawgreatcircle(self.Ori_Lon,self.Ori_Lat,self.Des_Lon,self.Des_Lat,
                           linewidth = 2.5,color='c',linestyle='--',zorder = 25, label = 'Great Circle Trajectory')
         
-#        def GetDrawSample(Track):
-        # Deprecated!
-#            DrawSample = Track.copy().set_index('FID')
-#            i = 0
-#            AllFid = DrawSample.index.unique()
-#            for kFid in AllFid:
-#                i += 1
-#                if i % 2 == 0:
-#                    DrawSample.loc[kFid, :] = DrawSample.loc[kFid,].loc[::-1]
-#                else:
-#                    pass
-#            DrawSample = DrawSample.reset_index()
-#            return DrawSample
         if QuickDraw:
             # QuickDraw uses lat lon altogether, without considering the ordering of the trajectories.
             # Adjacent Line will be marked out as Reference Line.
@@ -307,7 +314,7 @@ class EDA_Data:
                 for fid in DrawSample.index.unique():
                     x,y = m(DrawSample.ix[fid,'Lon'].values, DrawSample.ix[fid,'Lat'].values)
                     Trajectories, = plt.plot(x,y,'-', linewidth = 0.3, color='r', 
-                                     label = 'Real-time Trajectories: ' + self.Dep+'->'+self.Arr)
+                                     label = 'Actual Trajectories: ' + self.Dep+'->'+self.Arr)
 
             else:
                 longitude = np.array([])
@@ -368,7 +375,7 @@ class EDA_Data:
             CoreAir, = plt.plot(x, y, 'yo', markersize = 8, label = 'US Core 34 Airports')
             LengendHandle.append(CoreAir)
             
-        LEGEND = plt.legend(handles=LengendHandle, loc = 0, fontsize = 16)            
+        LEGEND = plt.legend(handles=LengendHandle, loc = 0, fontsize = 20)            
         LEGEND.get_frame().set_facecolor('#C0C0C0')
         return fig
         
@@ -384,7 +391,7 @@ class EDA_Data:
             for row in line:
                 i += 1
                 if i % 50000 == 0:
-                    print( i )
+                    print i
                 if [row[0],row[1]] not in FID:
                     FID.append([row[0],row[1]])
                     Track[row[0]] = {'FID':int(row[0]),'FIndex':row[1],'ACID':row[2],
@@ -396,7 +403,7 @@ class EDA_Data:
             TZ = np.asarray(Track[KEY]['TZ'])[:,1:3].tolist()
             Track[KEY]['TZ_LS'] = {'type':'LineString','coordinates':TZ}
             self.collection.insert(Track[KEY])
-        print( time.time() - a )
+        print time.time() - a
         return Track
         
     def SaveData(self):
