@@ -14,6 +14,8 @@ try:
 except:
     import pickle
 from scipy.spatial import cKDTree
+from sklearn.neighbors import KDTree
+# KDTree from sklearn has far more features than that from scipy. cKDTree from scipy is faster, though.
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
 from dateutil.parser import parse
@@ -92,7 +94,8 @@ def construct_wx(index_df, valid_weather_data, wx = 'TS_mean'):
     return WX[wx].values.reshape(index_df.WBAN.unique().shape[0], index_df.DT.unique().shape[0]).T
 
 def ProcessWeatherData(Wx_stationwise_dir = os.getcwd() + '/NOAA/Station_Based_Weather_Sum_UTC.csv', Wx_station_dir = os.getcwd() + '/NOAA/WeatherStation.csv', Save = True):
-
+    print('---------------- Preprocessing Wx file ----------------')
+    print('---------------- Load convective weather files (Stationwise) ----------------')
     weather_data = pd.read_csv(Wx_stationwise_dir)
     weather_station = pd.read_csv(Wx_station_dir)
 
@@ -112,6 +115,7 @@ def ProcessWeatherData(Wx_stationwise_dir = os.getcwd() + '/NOAA/Station_Based_W
     time_idx = np.sort(weather_data_valid.DT.unique())
     weather_index = pd.DataFrame(data = {'WBAN': np.repeat(station_idx, time_idx_len),
                                          'DT': np.tile(time_idx, station_idx_len)})
+    print('---------------- Construct Wx ----------------')
 
     TS = construct_wx(weather_index, weather_data_valid, 'TS_mean')
     TS_level = construct_wx(weather_index, weather_data_valid, 'TSlevel_mean')
@@ -127,6 +131,7 @@ def ProcessWeatherData(Wx_stationwise_dir = os.getcwd() + '/NOAA/Station_Based_W
     TimeIdxTree = cKDTree(time_idx.reshape(-1,1))
     StationIdxTree = cKDTree(np.vstack((x_ecef, y_ecef, z_ecef)).T)
     if Save:
+        print('Dumping to file')
         try:
             os.mkdir(os.getcwd() + '/NOAA/processed_stationwise')
         except:
@@ -143,6 +148,7 @@ def ProcessWeatherData(Wx_stationwise_dir = os.getcwd() + '/NOAA/Station_Based_W
         pickle.dump(LonLat_Station, open(os.getcwd() + '/NOAA/processed_stationwise/LonLat_Station.p', 'wb'), protocol = 2)
         pickle.dump(TimeIdxTree, open(os.getcwd() + '/NOAA/processed_stationwise/TimeIdxTree.p', 'wb'), protocol = 2)
         pickle.dump(StationIdxTree, open(os.getcwd() + '/NOAA/processed_stationwise/StationIdxTree.p', 'wb'), protocol = 2)
+    print('Done!')
     return weather_data_valid, TS, TS_level, Rain, Hail, Precipitation, Ice, Squall, Shower, LonLat_Station, TimeIdxTree, StationIdxTree
 
 class WeatherMatching:
@@ -158,13 +164,16 @@ class WeatherMatching:
                                        'TimeIdxTree': os.getcwd() + '/NOAA/processed_stationwise/' + 'TimeIdxTree.p',
                                        'StationIdxTree': os.getcwd() + '/NOAA/processed_stationwise/' + 'StationIdxTree.p'
                               }):
+        # Options for Wx_load_option: 
+        # 'Reload': load weather data from pickle file
+        # 'Process': call function ProcessWeatherData to get those data
         global BaseTime
         self.DEP = DEP
         self.ARR = ARR
         self.Year = Year
 
         if Wx_load_option == 'Reload':
-            print('---------------- Preload preprocessed wind files ----------------')
+            print('---------------- Preload preprocessed convective weather files ----------------')
             self.TS = pickle.load(open(file_location_dict['TS'], 'rb'))
             self.TSlevel = pickle.load(open(file_location_dict['TSlevel'], 'rb'))
             self.Rain = pickle.load(open(file_location_dict['Rain'], 'rb'))
@@ -177,29 +186,38 @@ class WeatherMatching:
             self.StationIdxTree = pickle.load(open(file_location_dict['StationIdxTree'], 'rb'))
             
             print('Finished')
-        else:
+        elif Wx_load_option == 'Process':
             _, self.TS, self.TS_level, self.Rain, self.Hail, \
                self.Precipitation, self.Ice, self.Squall, self.Shower, \
                _, self.TimeIdxTree, \
                self.StationIdxTree = ProcessWeatherData(Wx_stationwise_dir = os.getcwd() + '/NOAA/Station_Based_Weather_Sum_UTC.csv', Wx_station_dir = os.getcwd() + '/NOAA/WeatherStation.csv', Save = True)
+        else:
+            raise('ValueError: Wx_load_option is either Reload or Process')
 
-        self.LabelData, self.CenterTraj, self.CenterTraj_ECEF_Coords = self.LoadTraj()
+        self.LabelData, self.CenterTraj, self.CenterTraj_ECEF_Coords, self.OutlierTraj, self.OutlierTraj_ECEF_Coords = self.LoadTraj()
 
     def LoadTraj(self):
         print('---------------- Load Trajectories ----------------')
         VTrackPath = os.getcwd() + '/TFMS_NEW/New_' + self.DEP + self.ARR + str(self.Year) + '.csv'
         VTrack = pd.read_csv(VTrackPath, parse_dates=[6])
         LabelData = pd.read_csv(os.getcwd() + '/TFMS_NEW/Label_' + self.DEP+'_' + self.ARR+ '_' + str(self.Year) + '.csv', parse_dates=[6])
-        CenterTraj = VTrack[VTrack.FID.isin(LabelData[LabelData.MedianID != -2].FID.values)].reset_index(drop = 1)
+        CenterTraj = VTrack[VTrack.FID.isin(LabelData[LabelData.MedianID != -99].FID.values)].reset_index(drop = 1)
         # Prepare for temporal matching
         CenterTraj['TimeDelta'] = CenterTraj.groupby('FID')['Elap_Time'].transform(lambda x: (x - x.iloc[0]))
         CenterTraj['TimeDelta'] = (CenterTraj['TimeDelta'] - CenterTraj.loc[0,'TimeDelta']).apply(lambda x: x.seconds/3600)
+
+        OutlierTraj = VTrack[VTrack.FID.isin(LabelData[LabelData.ClustID < 0].FID.values)].reset_index(drop = 1)
+        # OutlierTraj['TimeDelta'] = OutlierTraj.groupby('FID')['Elap_Time'].transform(lambda x: (x - x.iloc[0]))
+        # OutlierTraj['TimeDelta'] = (OutlierTraj['TimeDelta'] - OutlierTraj.loc[0,'TimeDelta']).apply(lambda x: x.seconds/3600)
+
         x_ecef, y_ecef, z_ecef = geodetic2ecef(CenterTraj.Lon.values, CenterTraj.Lat.values)
+
+        x_ecef_out, y_ecef_out, z_ecef_out = geodetic2ecef(OutlierTraj.Lon.values, OutlierTraj.Lat.values)
         
         print('Finished')
-        return LabelData, CenterTraj, np.vstack((x_ecef, y_ecef, z_ecef)).T
+        return LabelData, CenterTraj, np.vstack((x_ecef, y_ecef, z_ecef)).T, OutlierTraj, np.vstack((x_ecef_out, y_ecef_out, z_ecef_out)).T
 
-    def Matching(self, N_point = 20, Max_dist = 60):       
+    def Matching(self, N_point = 20, Max_dist = 60):
 
         print('---------------- Prepare for temporal matching ----------------')
         TimeQuery = []
@@ -220,15 +238,9 @@ class WeatherMatching:
         TimeQueriedIdx = TimeQueriedIdx.reshape(TimeQuery.shape) # n flights * m nominal routes
         print('---------------- Finished----------------')
 
-
-
-        print('---------------- Prepare for spatial matching ----------------')
-        x_ecef, y_ecef, z_ecef = geodetic2ecef(self.CenterTraj.Lon.values, self.CenterTraj.Lat.values)
-        print('Finished')
-        CenterTraj_ECEF_Coords = np.vstack((x_ecef, y_ecef, z_ecef)).T
         # Get spatial query index
         print('---------------- Start spatial matching----------------')
-        StationDist, StationQueriedIdx = self.StationIdxTree.query(CenterTraj_ECEF_Coords, k = N_point, 
+        StationDist, StationQueriedIdx = self.StationIdxTree.query(self.CenterTraj_ECEF_Coords, k = N_point, 
                                                                            distance_upper_bound = euclidean_distance(1.852 * Max_dist)) # 60 nm
         # reset those indices outside of the max distance
         StationQueriedIdx[StationQueriedIdx == self.StationIdxTree.indices.max() + 1] = 999
@@ -236,8 +248,8 @@ class WeatherMatching:
         Weights = np.nan_to_num(Weights)
 
         # Structure the queried indices
-        SpatialIdx = np.hstack((np.tile(StationQueriedIdx[:,i], self.LabelData.shape[0]).reshape(-1,1) for i in range(20)))
-        WeightsIdx = np.hstack((np.tile(Weights[:,i], self.LabelData.shape[0]).reshape(-1,1) for i in range(20)))
+        SpatialIdx = np.hstack((np.tile(StationQueriedIdx[:,i], self.LabelData.shape[0]).reshape(-1,1) for i in range(N_point)))
+        WeightsIdx = np.hstack((np.tile(Weights[:,i], self.LabelData.shape[0]).reshape(-1,1) for i in range(N_point)))
 
         print('Shape of Spatial Index Matrix: ', SpatialIdx.shape)
         print('Shape of Weight Index Matrix (should be agree with the spatial index): ', WeightsIdx.shape)
@@ -275,6 +287,64 @@ class WeatherMatching:
         return self.Nominal_matched_TS, self.Nominal_matched_TSlevel, self.Nominal_matched_Rain, \
                self.Nominal_matched_Hail, self.Nominal_matched_Precipitation, self.Nominal_matched_Squall, self.Nominal_matched_Shower, self.Nominal_matched_Ice
 
+    # def MatchingOutlier(self, N_point = 20, Max_dist = 60):
+
+    #     print('---------------- Prepare for temporal matching ----------------')
+    #     TimeQuery = (self.OutlierTraj['Elap_Time'] - BaseTime).apply(lambda x: x.total_seconds()/3600.).values
+    #     print('---------------- Start temporal matching----------------')
+    #     TimeDist, TimeQueriedIdx = self.TimeIdxTree.query(TimeQuery.reshape(-1,1))
+    #     TimeQueriedIdx = TimeQueriedIdx.reshape(TimeQuery.shape) # n flights * m nominal routes
+    #     print('---------------- Finished----------------')
+
+    #     print('---------------- Start spatial matching----------------')
+    #     StationDist, StationQueriedIdx = self.StationIdxTree.query(self.OutlierTraj_ECEF_Coords, k = N_point, 
+    #                                                                        distance_upper_bound = euclidean_distance(1.852 * Max_dist)) # 60 nm
+    #     # reset those indices outside of the max distance
+    #     StationQueriedIdx[StationQueriedIdx == self.StationIdxTree.indices.max() + 1] = 999
+    #     Weights = (1./StationDist)/(np.sum(1./StationDist, axis = 1).reshape(-1,1))
+    #     Weights = np.nan_to_num(Weights)
+
+    #     # Structure the queried indices
+    #     SpatialIdx = StationQueriedIdx
+    #     WeightsIdx = Weights
+
+    #     print('Shape of Spatial Index Matrix: ', SpatialIdx.shape)
+    #     print('Shape of Weight Index Matrix (should be agree with the spatial index): ', WeightsIdx.shape)
+    #     print('Shape of Temporal Index Matrix: ', TimeQueriedIdx.shape)
+        
+    #     print('---------------- Finilize matching and reshaping ----------------')
+
+    #     I_matrix = np.zeros((self.OutlierTraj.FID.unique().shape[0], self.OutlierTraj.shape[0]))
+    #     I_matrix_mean = np.zeros((self.OutlierTraj.FID.unique().shape[0], self.OutlierTraj.shape[0]))
+
+    #     for j in range(I_matrix.shape[0]):
+    #         try:
+    #             I_matrix[j, self.OutlierTraj.groupby('FID').head(1).index[j]:self.OutlierTraj.groupby('FID').head(1).index[j+1]] = 1
+    #             I_matrix_mean[j, self.OutlierTraj.groupby('FID').head(1).index[j]:self.OutlierTraj.groupby('FID').head(1).index[j+1]] = 1/np.count_nonzero(I_matrix[j,:])
+    #         except:
+    #             I_matrix[j, self.OutlierTraj.groupby('FID').head(1).index[j]:] = 1
+    #             I_matrix_mean[j, self.OutlierTraj.groupby('FID').head(1).index[j]:] = 1/np.count_nonzero(I_matrix[j,:])
+
+    #     def FinializeMatching(Wx):
+    #         matched_Wx = Wx[TimeQueriedIdx.reshape(-1,1), SpatialIdx]
+    #         matched_Wx_weighted_sum = np.sum(np.multiply(matched_Wx, WeightsIdx), axis = 1).reshape(TimeQuery.shape)
+    #         Nominal_matched_Wx = I_matrix_mean.dot(matched_Wx_weighted_sum.T).T.reshape(-1,1)
+    #         return Nominal_matched_Wx
+
+    #     self.Nominal_matched_TS_out = FinializeMatching(self.TS)
+    #     self.Nominal_matched_TSlevel_out = FinializeMatching(self.TSlevel)
+    #     self.Nominal_matched_Rain_out = FinializeMatching(self.Rain)
+    #     self.Nominal_matched_Hail_out = FinializeMatching(self.Hail)
+    #     self.Nominal_matched_Precipitation_out = FinializeMatching(self.Precipitation)
+    #     self.Nominal_matched_Shower_out = FinializeMatching(self.Shower)
+    #     self.Nominal_matched_Ice_out = FinializeMatching(self.Ice)
+    #     self.Nominal_matched_Squall_out = FinializeMatching(self.Squall)
+    #     print('*******---------------------Finished------------------------*******')
+
+    #     return self.Nominal_matched_TS_out, self.Nominal_matched_TSlevel_out, self.Nominal_matched_Rain_out, \
+    #            self.Nominal_matched_Hail_out, self.Nominal_matched_Precipitation_out, self.Nominal_matched_Squall_out, \
+    #            self.Nominal_matched_Shower_out, self.Nominal_matched_Ice_out
+
     def MergeWithMNL(self, TimeZone, Save = True):
         # If Generic MNL exists, load. Otherwise, build
         fnmae = os.getcwd() + '/MNL/MNL_Generic' + self.DEP + '_' + self.ARR + '_' + str(self.Year) + '.csv'
@@ -300,6 +370,16 @@ class WeatherMatching:
         MNL = MNL.merge(Wx_df, left_on=['FID_x', 'FID_Member'], right_on=['NominalFID', 'MemberFID'], how = 'left')
         del MNL['NominalFID']
         del MNL['MemberFID']
+
+        # Wx_out_df = self.OutlierTraj[['FID']]
+        # Wx_out_df['TS_mean'] = self.Nominal_matched_TS_out
+        # Wx_out_df['TSlevel_mean'] = self.Nominal_matched_TSlevel_out
+        # Wx_out_df['Rain_mean'] = self.Nominal_matched_Rain_out
+        # Wx_out_df['Hail_mean'] = self.Nominal_matched_Hail_out
+        # Wx_out_df['Precipitation_mean'] = self.Nominal_matched_Precipitation_out
+        # Wx_out_df['Shower_mean'] = self.Nominal_matched_Shower_out
+        # Wx_out_df['Ice_mean'] = self.Nominal_matched_Ice_out
+        # Wx_out_df['Squall_mean'] = self.Nominal_matched_Squall_out
 
         if Save:
             MNL.to_csv(os.getcwd() + '/MNL/WSx_MNL_' + self.DEP + self.ARR + '_' + str(self.Year) + '.csv', index = False)
