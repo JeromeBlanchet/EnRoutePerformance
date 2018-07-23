@@ -82,8 +82,8 @@ class extractFAASUAgeo:
                              usecols = [1, 2, 4, 9,18])
 
     def __GetPolygon(self, x):
-        BoundaryCoords = map(float,re.split('; | ', x))
-        Poly = Polygon(zip(BoundaryCoords[1::2], BoundaryCoords[0::2]))
+        BoundaryCoords = list(map(float,re.split('; | ', x)))
+        Poly = Polygon(list(zip(BoundaryCoords[1::2], BoundaryCoords[0::2])))
     #     return Poly
         if Poly.is_valid:
             return Poly
@@ -92,7 +92,7 @@ class extractFAASUAgeo:
             mlat = 2 * sum(BoundaryCoords[0::2])/len(BoundaryCoords)
             def algo(x):
                 return (math.atan2(x[0] - mlon, x[1] - mlat) + 2 * math.pi) % (2*math.pi)
-            MeterPntList = zip(BoundaryCoords[1::2], BoundaryCoords[0::2])
+            MeterPntList = list(zip(BoundaryCoords[1::2], BoundaryCoords[0::2]))
             MeterPntList.sort(key=algo)
             return Polygon(MeterPntList)
     def __GetAirName(self, x, y, Type):
@@ -164,7 +164,7 @@ class extractNFDCSUAgeo:
                 mlat = sum(gpLat)/len(gpLat)
                 def algo(x):
                     return (math.atan2(x[0] - mlon, x[1] - mlat) + 2 * math.pi) % (2*math.pi)
-                MeterPntList = zip(gpLon, gpLat)
+                MeterPntList = list(zip(gpLon, gpLat))
                 MeterPntList.sort(key=algo)
                 Poly = Polygon(MeterPntList)
 
@@ -236,7 +236,7 @@ def combineSaaGeo(faaGeo, nfdcGeo, Plot = False):
             if map_single[-1].type == 'Polygon':
                 coords = np.array(map_single[-1].boundary.coords)
                 x,y = m(coords[:,0], coords[:,1])
-                xy = zip(x,y)
+                xy = list(zip(x,y))
                 if map_single[1] == 'M':
                     map_Poly = plt_patch.Polygon( xy, facecolor='blue', alpha=0.75, label = 'MOA', zorder = 2)
                 elif map_single[1] == 'L':
