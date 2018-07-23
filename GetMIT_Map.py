@@ -18,19 +18,23 @@ from sklearn.neighbors import KDTree
 from collections import OrderedDict
 import matplotlib.pyplot as plt
 from mpl_toolkits.basemap import Basemap
+import re
 
-def ProcessMITData():
+def ProcessMITData(MIT_dir = os.getcwd()+'/TMI/MIT_Enroute_Merge_2013.csv',
+                   AirwayGeo_dir = os.getcwd() + '/TMI/Geometry/Airways_CleanRelevant.csv',
+                   NavaidsGeo_dir = os.getcwd() + '/TMI/Geometry/FixesNavaids_CleanRelevant.csv',
+                   TRACONGeo_dir = os.getcwd() + '/TMI/Geometry/TRACON.csv'):
     # Import MIT
-    MIT_Enroute = pd.read_csv(os.getcwd()+'/TMI/MIT_Enroute_Merge.csv', sep = ',',parse_dates=[4,6])
-    Airways = pd.read_csv(os.getcwd() + '/TMI/Geometry/Airways_CleanRelevant.csv')
-    Navaids = pd.read_csv(os.getcwd() + '/TMI/Geometry/FixesNavaids_CleanRelevant.csv')
-    TRACON = pd.read_csv(os.getcwd() + '/TMI/Geometry/TRACON.csv')
+    MIT_Enroute = pd.read_csv(MIT_dir, sep = ',', parse_dates=[4,6])
+    Airways = pd.read_csv(AirwayGeo_dir)
+    Navaids = pd.read_csv(NavaidsGeo_dir)
+    TRACON = pd.read_csv(TRACONGeo_dir)
     
     # Convert TRACON into single polygon, with name unique
 
     def GetPolygon(x):
-        BoundaryCoords = map(float,x.split())
-        Poly = Polygon(zip(BoundaryCoords[1::2], BoundaryCoords[0::2]))
+        BoundaryCoords = list(map(float,x.split()))
+        Poly = Polygon(list(zip(BoundaryCoords[1::2], BoundaryCoords[0::2])))
         if Poly.is_valid:
             return Poly
         else:
@@ -38,9 +42,10 @@ def ProcessMITData():
             mlat = 2 * sum(BoundaryCoords[0::2])/len(BoundaryCoords)
             def algo(x):
                 return (math.atan2(x[0] - mlon, x[1] - mlat) + 2 * math.pi) % (2*math.pi)
-            MeterPntList = zip(BoundaryCoords[1::2], BoundaryCoords[0::2])
+            MeterPntList = list(zip(BoundaryCoords[1::2], BoundaryCoords[0::2]))
             MeterPntList.sort(key=algo)
             return Polygon(MeterPntList)
+            
     TRACON['geometry'] = TRACON.BOUNDARY.apply(lambda x: GetPolygon(x))
     TRACON_POLY = TRACON.groupby('TRACON_ID').geometry.apply(lambda x: cascaded_union(x)).reset_index()
     
@@ -90,7 +95,7 @@ def ProcessMITData():
     def GetAltSign(x):
         if pd.isnull(x):
             return np.nan
-        elif type(x) != str:
+        elif len(re.findall('[a-zA-Z]+', x)) == 0 or 'AT' in x:
             return 0
         else:
             if '+' in x:
@@ -100,37 +105,72 @@ def ProcessMITData():
     def GetAltVal(x):
         if pd.isnull(x):
             return np.nan
-        elif type(x) != str:
-            return x
+        elif len(re.findall('[a-zA-Z]+', x)) == 0 or 'AT' in x:
+            return int(re.findall(r'\d+', x)[0])
         else:
             if '+' in x:
-                return int(x[:-1])
+                return int(re.findall(r'\d+', x)[0])
+            elif '-' in x:
+                return -int(re.findall(r'\d+', x)[0])      
             else:
-                return -int(x[:-1])        
+                print(x)
+                return np.nan
     MIT_Enroute_geo['ALTITUDE_SIGN'] = MIT_Enroute_geo.ALTITUDE.apply(lambda x: GetAltSign(x))
     MIT_Enroute_geo['ALTITUDE_VALUE']= MIT_Enroute_geo.ALTITUDE.apply(lambda x: GetAltVal(x))
     return MIT_Enroute_geo
 
 class MappingMIT:
-    def __init__(self, Dep, Arr, Year, MIT_Enroute, Type = 'Nominal'):
+    def __init__(self, 
+                 Dep, 
+                 Arr, 
+                 Year, 
+                 MIT_Enroute, 
+                 Type = 'Nominal',
+                 VTrack = None,
+                 LabelData = None):
         # load data
         # MIT_Enroute Should be a pandas dataframe, load pickle file into memory is good enough.
         self.Dep = Dep
         self.Arr = Arr
         self.Year = Year
         self.Type = Type
-        VTrackPath = os.getcwd() + '/TFMS_NEW/New_' + Dep + Arr + str(Year) + '.csv'
-        self.VTrack = pd.read_csv(VTrackPath, parse_dates=[6])
-        self.LabelData = pd.read_csv(os.getcwd() + '/TFMS_NEW/Label_' + Dep+'_' + Arr+ '_' + str(Year) + '.csv', parse_dates=[6])
-        self.CenterTraj = self.VTrack[self.VTrack.FID.isin(self.LabelData[self.LabelData.MedianID != -2].FID.values)].reset_index(drop = 1)
-        self.CenterFlightID = self.CenterTraj.FID.unique()
+
+        self.VTrack, self.LabelData, self.CenterTraj, self.CenterFlightID = self.LoadTraj(VTrack, LabelData)
+
         # MIT_Enroute_geo = pickle.load(open(os.getcwd() + '/TMI/MIT_WithGeometry_Enroute.p'))        
-        self.MIT_Enroute = MIT_Enroute
+        self.MIT_Enroute = MIT_Enroute.copy()
         self.MIT_Enroute_VALUE = self.MIT_Enroute[['HEADID','MITVAL','DURATION_HRS_TOT']].drop_duplicates() 
         # Convert Geometry, Build trees
         
         self.Traj_Line, self.Traj_Tree = self.ConvertGeometry()
         self.Mapping_result = {}
+
+    def LoadTraj(self, 
+                 VTrack = None,
+                 LabelData = None):
+        print('---------------- Load Trajectories ----------------')
+        if VTrack is None:
+            VTrackPath = os.getcwd() + '/TFMS_NEW/New_' + self.DEP + self.ARR + str(self.Year) + '.csv'
+            VTrack = pd.read_csv(VTrackPath)
+        else:
+            VTrack = VTrack
+        if LabelData is None:
+            LabelData = pd.read_csv(os.getcwd() + '/TFMS_NEW/Label_' + self.DEP+'_' + self.ARR+ '_' + str(self.Year) + '.csv')
+        else:
+            LabelData = LabelData
+    
+        try:
+            LabelData.Elap_Time = LabelData.Elap_Time.apply(lambda x: parse(x))
+        except:
+            pass
+        CenterTraj = VTrack[VTrack.FID.isin(LabelData[LabelData.MedianID != -99].FID.values)].reset_index(drop = 1)
+        CenterFlightID = CenterTraj.FID.unique()
+        try:
+            CenterTraj.Elap_Time = CenterTraj.Elap_Time.apply(lambda x: parse(x))
+        except:
+            pass
+        print('Finished')
+        return VTrack, LabelData, CenterTraj, CenterFlightID
         
     def ProcessMIT(self):
         return
@@ -164,7 +204,8 @@ class MappingMIT:
         # Trajectory should be a LineString
         # TrajID should be the FID of the matching Trajectory (center)
         # MIT should be a np array containing MITID, TOFAC, FRFAC, NAS_ELEM, NAS_ELEM_TYPE, Alt, MITVAL, DURATION, ...        
-        # if MIT.NAS_ELEM_TYPE == 'AIRWAY':
+        # Traj_KDtree is a tree based on traj_coords
+        # [kdtree, elap_time, alt (in feet)]
         if MIT[13] == 'AIRWAY':
             BUFFER = parameters['AIRWAY'][0] ##
             k = 1
@@ -176,6 +217,7 @@ class MappingMIT:
             k = 0
         try:
             if k == 0:
+            	# intersection returns the line segment within the polygon
                 CrossPt_NAS = Trajectory.intersection(MIT[17].buffer(BUFFER)).coords[0][:2]
             else:
                 if Trajectory.intersection(MIT[17].buffer(BUFFER)).length >= parameters['AIRWAY'][1]: ##
@@ -247,7 +289,7 @@ class MappingMIT:
                                                 self.Traj_Line[FFID], self.Traj_Tree[FFID], mit, parameters))
                     self.Mapping_result[FFID] = np.unique(np.array(self.Mapping_result[FFID]))
             
-            if self.Type == 'Nominal':
+            elif self.Type == 'Nominal':
                 self.Mapping_result[FFID] = {}
                 for fid in self.CenterFlightID:
                     EndTime = departureTime + datetime.timedelta(seconds = Airborne.loc[fid])
@@ -293,7 +335,7 @@ class MappingMIT:
             d['parent_FID'] = FFID
             df = pd.concat([df, d])
         df = df.reset_index().set_index(['parent_FID','index']).stack().reset_index()
-        df.columns = ['FFID','FID_Cluster', 'Seq','MIT_HEAD_ID']
+        df.columns = ['MemberFID','NominalFID', 'Seq','MIT_HEAD_ID']
         df = df.merge(self.MIT_Enroute_VALUE, left_on='MIT_HEAD_ID', right_on='HEADID', how='left')
         df['MIT_Str'] = df['MITVAL'] * df['DURATION_HRS_TOT']
         Oprs = OrderedDict()
@@ -301,15 +343,15 @@ class MappingMIT:
         Oprs['MITVAL']= [sum, np.mean, max]
         Oprs['DURATION_HRS_TOT']= [sum, np.mean, max]
         Oprs['MIT_Str']= [sum, np.mean, max]
-        df = df.groupby(['FFID','FID_Cluster']).agg(Oprs).reset_index()
+        df = df.groupby(['MemberFID','NominalFID']).agg(Oprs).reset_index()
         df['MIT_Count'] = df['HEADID'] - 1
         df = df.fillna(0)
         df.columns = df.columns.droplevel()
         df = df.drop(['count_nonzero'], axis = 1)
-        df.columns = ['FFID','FID_Cluster','MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
+        df.columns = ['MemberFID','NominalFID','MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
                       'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
                       'MIT_Str_mean','MIT_Str_max', 'MIT_Count']
-        df = df.sort_values(by=['FFID','FID_Cluster'])
+        df = df.sort_values(by=['MemberFID','NominalFID'])
         
 #        MIT_df = pd.DataFrame({(i,j): Map_MIT[i][j]
 #                                for i in Map_MIT.keys()
@@ -322,26 +364,68 @@ class MappingMIT:
 #        MIT_df = MIT_df.drop(['HEADID'], axis = 1)
 #        MIT_df = MIT_df.sort_values(by=['FFID','FID_Cluster'])
         return df
-        
-    def MergeWithMNL(self):
-        # Only work for Nominal now...
+
+    def MergeWithMNL(self, 
+                     existingMNLpath = None,
+                     Save = False,
+                     Overwrite = False,
+                     **kwargs):
+        # work directly with MA
         MIT_MAP_DF = self.ConvertToDataFrame()
-        MNL_data_withWind = pd.read_csv(os.getcwd() + '/MNL/NEW_MNL_' + self.Dep + self.Arr + str(self.Year) +'.csv')
-        MNL_data_withWind=MNL_data_withWind.merge(MIT_MAP_DF, left_on=['FID_Member','FID_x'], right_on = ['FFID','FID_Cluster'],how='left')
-        MNL_data_withWind[['MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
-                      'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
-                      'MIT_Str_mean','MIT_Str_max', 'MIT_Count']] = \
-            MNL_data_withWind[['MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
-                      'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
-                      'MIT_Str_mean','MIT_Str_max', 'MIT_Count']].fillna(0)
-        MNL_data_withWind = MNL_data_withWind.drop(['FID_y','FFID','FID_Cluster'], axis = 1)
-        return MNL_data_withWind
+        print('Finished converting...')
+
+        if existingMNLpath is None:
+            print('\n-----------Please input the existing MNL dir-------------\n')
+            InferredMNLpath = os.getcwd() + '/MNL/MA_Final_MNL_' + self.DEP + self.ARR + '_' + str(self.Year) + '.csv'
+            print('Inferred MNL as %s'%InferredMNLpath)
+            MNL = pd.read_csv(InferredMNLpath)
+        else:
+            MNL = pd.read_csv(existingMNLpath)
+        MNL = MNL.merge(MIT_MAP_DF, left_on=['FID_Member','FID_x'], right_on = ['MemberFID','NominalFID'],how='left')
+        del MNL['MemberFID']
+        del MNL['NominalFID']
+
+        MNL.loc[MNL.FID_x != 99999999, ['MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
+                                        'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
+                                        'MIT_Str_mean','MIT_Str_max', 'MIT_Count']] = \
+                        MNL.loc[MNL.FID_x != 99999999, ['MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
+                                                      'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
+                                                      'MIT_Str_mean','MIT_Str_max', 'MIT_Count']].fillna(0)
+
+        if Save == True:
+            if Overwrite:
+                MNL.to_csv(existingMNLpath, index = False)
+            else:
+
+                MNL.to_csv(kwargs['newMNLpath'], index = False)
+        return MNL
         
-def MIT_MappingSummary(Dep, Arr, Year, Plot = False):
+    # def MergeWithMNL(self):
+    #     # Only work for Nominal now...
+    #     MIT_MAP_DF = self.ConvertToDataFrame()
+    #     MNL_data_withWind = pd.read_csv(os.getcwd() + '/MNL/NEW_MNL_' + self.Dep + self.Arr + str(self.Year) +'.csv')
+    #     MNL_data_withWind=MNL_data_withWind.merge(MIT_MAP_DF, left_on=['FID_Member','FID_x'], right_on = ['FFID','FID_Cluster'],how='left')
+    #     MNL_data_withWind[['MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
+    #                   'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
+    #                   'MIT_Str_mean','MIT_Str_max', 'MIT_Count']] = \
+    #         MNL_data_withWind[['MIT_VAL_sum','MIT_VAL_mean','MIT_VAL_max',\
+    #                   'MIT_DUR_sum','MIT_DUR_mean','MIT_DUR_max','MIT_Str_sum',\
+    #                   'MIT_Str_mean','MIT_Str_max', 'MIT_Count']].fillna(0)
+    #     MNL_data_withWind = MNL_data_withWind.drop(['FID_y','FFID','FID_Cluster'], axis = 1)
+    #     return MNL_data_withWind
+        
+def MIT_MappingSummary(Dep, 
+                       Arr, 
+                       Year, 
+                       MNL_dir = None,
+                       Plot = False,
+                       **kwargs):
     try:
-        MNL_data_withWind = pd.read_csv(os.getcwd() + '/MNL/Final_MNL_' + Dep + Arr + '_' + str(Year) +'.csv')
+        MNL_data_withWind = pd.read_csv(MNL_dir)
     except:
-        print('Further Development')
+        MNL_dir = os.getcwd() + '/MNL/Final_MNL_' + Dep + Arr + '_' + str(Year) +'.csv'
+        MNL_data_withWind = pd.read_csv(MNL_dir)
+        print('load data from InFeRRed DIR %s'%MNL_dir)
     print('============%d trajectories in total============'%MNL_data_withWind.FID_Member.unique().shape[0])
     print('============%d nominal trajectories in total============'%(MNL_data_withWind.FID_x.unique().shape[0]-1))
     
@@ -355,7 +439,10 @@ def MIT_MappingSummary(Dep, Arr, Year, Plot = False):
     SummaryStat.columns = ['ClusterFID'] + SummaryStat.columns.droplevel()[1:].tolist()
     SummaryStat = SummaryStat.loc[SummaryStat.ClusterFID != 99999999,:]
     if Plot:
-        VTRACK = pd.read_csv(os.getcwd()+'\TFMS_NEW\\'+'New_'+Dep+Arr+str(Year)+'.csv')
+        try:
+            VTRACK = kwargs['VTrack']
+        except:
+            VTrack = pd.read_csv(os.getcwd()+'/TFMS_NEW/'+'New_'+Dep+Arr+str(Year)+'.csv')
         MedianTrack = VTRACK[VTRACK.FID.isin(SummaryStat.ClusterFID.values)][['FID','Lon','Lat']]
         fig = plt.figure(figsize=(18,6))
         ax1 = fig.add_subplot(1,2,1)
