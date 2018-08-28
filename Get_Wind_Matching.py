@@ -47,6 +47,8 @@ def proxilvl(alt , lvls):
     return levels[np.abs(levels - p).argmin()]
 
 def GetAzimuth(CenterTraj1):
+    ## Legacy code, should be thrown away
+    ## This could be easily vectorized
     CenterTraj = CenterTraj1.copy()
     CenterTraj['azimuth'] = 0.0
     FID = []
