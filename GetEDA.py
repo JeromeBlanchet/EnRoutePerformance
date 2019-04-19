@@ -21,16 +21,17 @@ from dateutil.parser import parse
 from shapely.geometry import LineString
 import pickle
 from GetPreferRoute import PreferRoute
+import functools
 
 def GCDistance(S_Lat,S_Lon,E_Lat,E_Lon):
-    start_lat = math.radians(S_Lat)  
-    start_lon = math.radians(S_Lon)
-    end_lat = math.radians(E_Lat)
-    end_lon = math.radians(E_Lon)
+    start_lat = np.radians(S_Lat)  
+    start_lon = np.radians(S_Lon)
+    end_lat = np.radians(E_Lat)
+    end_lon = np.radians(E_Lon)
     d_lat = end_lat - start_lat  
     d_lon = end_lon - start_lon  
-    a = math.sin(d_lat/2)**2 + math.cos(start_lat) * math.cos(end_lat) * math.sin(d_lon/2)**2  
-    c = 2 * math.asin(math.sqrt(a))  
+    a = np.sin(d_lat/2)**2 + np.cos(start_lat) * np.cos(end_lat) * np.sin(d_lon/2)**2  
+    c = 2 * np.arcsin(np.sqrt(a))  
     # Radius of earth is 3440 nm
     return 3440 * c
 
@@ -165,7 +166,7 @@ class EDA_Data:
         OD_TRACK['ID2'] = OD_TRACK.FlightIdx.map(str) + '-' + OD_TRACK.ACID
         OD_TRACK['DT'] = DT
         OD_TRACK['Dist'] = DDist
-        OD_TRACK['Speed'] = OD_TRACK.Dist/OD_TRACK.DT
+        OD_TRACK['Speed'] = OD_TRACK.Dist/OD_TRACK.DT # nmi/sec
         OD_TRACK.Speed = OD_TRACK.Speed.replace([np.inf, -np.inf], np.nan)
                 
         OD_TRACK[['DT','Dist','Speed']] = OD_TRACK[['DT','Dist','Speed']].fillna(0)
@@ -197,11 +198,11 @@ class EDA_Data:
         InValid_Fid1 = InValid_Track1.FID.unique()
         InValid_Fid2 = InValid_Track2.FID.unique()
 #        InValid_Fid3 = InValid_Track3.FID.unique()
-#        InValid_Fid = reduce(np.union1d,(InValid_Fid1,InValid_Fid2,InValid_Fid3))
+#        InValid_Fid = functools.reduce(np.union1d,(InValid_Fid1,InValid_Fid2,InValid_Fid3))
         
         WFFID = self.DetectDiscont(Tcut, Dcut, Vcut)
         
-        InValid_Fid = reduce(np.union1d,(InValid_Fid1,InValid_Fid2,WFFID))
+        InValid_Fid = functools.reduce(np.union1d,(InValid_Fid1,InValid_Fid2,WFFID))
         
         VTRACK = self.Track[~((self.Track['FID'].isin(InValid_Fid)))]
         VTRACK = VTRACK[VTRACK.FID.isin(self.Efficiency.keys())].reset_index(drop = True)
@@ -218,7 +219,7 @@ class EDA_Data:
         WFFID3 = self.Track[self.Track.Speed > V_Cut].FID.unique()
         DistTrav = self.Track.groupby('FID').Dist.sum()
         WFFID4 = DistTrav.index[np.where(DistTrav < GCDistance(self.Ori_Lat,self.Ori_Lon,self.Des_Lat,self.Des_Lon))]
-        WFFID = reduce(np.union1d,(WFFID1,WFFID2,WFFID3,WFFID4))
+        WFFID = functools.reduce(np.union1d,(WFFID1,WFFID2,WFFID3,WFFID4))
         return WFFID
 
     def DetectHolding(self, Plot = False):
@@ -234,7 +235,7 @@ class EDA_Data:
     	else:
     		return Holding
 
-    def PlotWithID(self, FID_set = [], FlightIDX_ACID_set = [],xlb = -126,xrb = -65,ylb = 23.5,yub = 50, LW = 2.5, Animated = False, many_col = False):
+    def PlotWithID(self, FID_set = [], FlightIDX_ACID_set = [],xlb = -126,xrb = -65,ylb = 23.5,yub = 50, LW = 1, Animated = False, many_col = False):
         fig = plt.figure(figsize=(16,12))
         m = Basemap(llcrnrlon = xlb,llcrnrlat = ylb,urcrnrlon = xrb,urcrnrlat = yub,projection='merc')
         m.bluemarble()
@@ -391,7 +392,7 @@ class EDA_Data:
             for row in line:
                 i += 1
                 if i % 50000 == 0:
-                    print i
+                    print(i)
                 if [row[0],row[1]] not in FID:
                     FID.append([row[0],row[1]])
                     Track[row[0]] = {'FID':int(row[0]),'FIndex':row[1],'ACID':row[2],
@@ -403,7 +404,7 @@ class EDA_Data:
             TZ = np.asarray(Track[KEY]['TZ'])[:,1:3].tolist()
             Track[KEY]['TZ_LS'] = {'type':'LineString','coordinates':TZ}
             self.collection.insert(Track[KEY])
-        print time.time() - a
+        print(time.time() - a)
         return Track
         
     def SaveData(self):
